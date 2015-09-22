@@ -1,0 +1,91 @@
+#!/bin/sh
+
+################################################################################
+# preferences
+
+PREFS_FILE="$HOME/.tcrefresh"
+
+# set DEBUG to "-v" or "" -- it will
+#   1. activate shell tracing
+#   2. be passed to curl as an argument
+DEBUG=""
+
+################################################################################
+# preconditions
+
+set -e
+if [ ! -z $DEBUG ];
+then
+    set -x
+fi
+
+require () {
+    if ! command -v $1 > /dev/null 2>&1 ;
+    then
+        echo "requires $1$2. brew install $1 and rerun."
+        exit
+    fi
+}
+
+require jq " (https://github.com/stedolan/jq)"
+require curl
+
+
+################################################################################
+# help command
+
+if [ "$1" == "help" -o "$1" == "--help" ] ;
+then
+    cat <<EOF
+
+tcjwt [command]
+
+COMMANDS:
+  help		This helpful message
+  refresh	Use tcjwt in system clipboard to acquire and save a refresh
+		token, which expires monthly
+  token		Trade saved refresh token for a v3 jwt and write to system
+		clipboard
+
+[command] may be omitted, in which case it is assumed to be "token"
+
+FILES:
+  $PREFS_FILE	Storage for the refresh token
+
+EOF
+
+    exit
+fi
+
+
+################################################################################
+# refresh command
+
+if [ "$1" == "refresh" ] ;
+   then
+       echo "refreshing token ..."
+       curl -s $DEBUG -H "Authorization: Bearer $(pbpaste)" https://api.topcoder-dev.com/v3/authorizations/1 | \
+           jq ".result.content | {refreshToken, externalToken}" | \
+           tee $PREFS_FILE
+       exit
+fi
+
+
+################################################################################
+# token command
+
+if [ -z "$1" -o "$1" == "token" ] ;
+   then
+       echo "acquiring jwt ..."
+       jq '{param: .}' < $PREFS_FILE | \
+           curl -s $DEBUG -H "Content-Type: application/json" -X POST --data @- https://api.topcoder-dev.com/v3/authorizations/ | \
+           jq -r ".result.content.token" | \
+           pbcopy
+       echo "copied."
+       exit
+fi
+
+
+################################################################################
+# fallback to help command
+tcjwt --help
