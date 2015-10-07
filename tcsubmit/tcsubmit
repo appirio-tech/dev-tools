@@ -20,7 +20,7 @@ then
 fi
 
 confirm() {
-    echo "\n$1\n"
+    echo "$1\n"
     read -p "Confirm by pressing any key or Ctrl-C to exit ..." -n 1 -r
     echo
 }
@@ -34,9 +34,13 @@ require () {
 }
 
 require jq "requires jq (https://github.com/stedolan/jq). brew install jq and rerun"
-require tcjwt "requires tcjwt command from this repository to be available on your path"
 require curl "requires curl"
 
+if [ ! -f $TOKEN_FILE ];
+then
+    echo "\nrequires tcjwt refresh file. run 'tcjwt refresh' (from this repository -- follow tcjwt directions) to create a $TOKEN_FILE file\n"
+    exit
+fi
 
 #
 # help command
@@ -73,6 +77,7 @@ fi
 #
 # command prerequisites
 
+echo "refreshing token ..."
 TOKEN=$(jq '{param: .}' < $TOKEN_FILE | curl -s $DEBUG -H "Content-Type: application/json" -X POST --data @- https://api.topcoder-dev.com/v3/authorizations/ | jq -r ".result.content.token")
 
 
