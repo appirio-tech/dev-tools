@@ -190,7 +190,52 @@ if [ "$1" == "attach" ] ;
        STEPID=$3
        SUBID=$4
 
-       confirm "attaching '$SUBID' to step '$STEPID' on project id '$WORKID' ..."
+       echo "attaching '$SUBID' to step '$STEPID' on project id '$WORKID' ..."
+
+       GET_STEP_URL="$API_BASE/projects/$WORKID/steps/$STEPID"
+
+       echo "\nGET $GET_STEP_URL"
+       RESULT=$(curl -s $DEBUG -H "Authorization: Bearer $TOKEN" $GET_STEP_URL)
+
+       STATUS=$(echo $RESULT | jq '.result.status')
+       if [ "$STATUS" == "200" ];
+       then
+           echo "$STATUS OK\n"
+           SUBMISSION_IDS=$(echo $RESULT | jq '.result.content.details.submissionIds')
+           if [ -z "$SUBMISSION_IDS" ];
+           then
+               SUBMISSION_IDS='[]'
+           fi
+           COUNT=$(echo $SUBMISSION_IDS | jq '. | length')
+           echo "found $COUNT existing submissions"
+           echo $SUBMISSION_IDS | jq
+       else
+           echo "ERROR requesting workstep"
+           echo $RESULT
+           exit -1
+       fi
+
+       echo "PATCH $GET_STEP_URL"
+       PAYLOAD=$(echo $SUBMISSION_IDS | jq ". + [\"$SUBID\"] | {submissionIds: .} | {details: .} | {param: .}")
+       echo $PAYLOAD | jq
+       confirm
+
+       RESULT=$(echo $PAYLOAD | curl -s $DEBUG \
+                                     -H "Authorization: Bearer $TOKEN" \
+                                     -H "Content-Type: application/json" \
+                                     -X PATCH --data @- $GET_STEP_URL)
+       STATUS=$(echo $RESULT | jq '.result.status')
+
+       if [ "$STATUS" == "200" ];
+       then
+           echo "$STATUS OK\n"
+           echo $RESULT | jq -r '.result.content'
+           exit 0
+       else
+           echo "ERROR patching work step details"
+           echo $RESULT
+           exit -1
+       fi
 fi
 
 
