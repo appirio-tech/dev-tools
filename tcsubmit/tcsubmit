@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 #
 # preferences
@@ -177,7 +177,7 @@ if [ "$1" == "submission" ] ;
            echo $RESULT | jq -r '.result.content.id'
            exit 0
        else
-           echo "ERROR requesting presigned url"
+           echo "ERROR creating submission"
            echo $RESULT
            exit -1
        fi
