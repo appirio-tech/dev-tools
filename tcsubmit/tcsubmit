@@ -113,7 +113,11 @@ COMMANDS:
 		<filename> is the path to the file. Avoid choosing a file outside the working directory.
 
 EXAMPLE FLOW:
-# -- TODO
+
+# -- TODO submission, attach
+
+./tcsubmit file 1443552305127-2665abd7-7a85-486d-ad7e-bfd92d438571 COVER 'text/plain' foo.txt
+./tcsubmit file 1443552305127-2665abd7-7a85-486d-ad7e-bfd92d438571 DELIVERABLE 'text/plain' foo2.txt
 
 FILES:
   $TOKEN_FILE	Storage for the refresh token
