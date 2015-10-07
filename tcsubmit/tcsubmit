@@ -157,8 +157,8 @@ if [ "$1" == "submission" ] ;
        confirm "creating submission by user id '$SUBMITTER_ID' ranked '$SUBMITTER_RANK' ..."
 
        PAYLOAD=$(echo $POST_SUBMISSION_TEMPLATE |\
-                        jq ".submitterId=\"$SUBMITTER_ID\"" |\
-                        jq ".submitterRank=\"$SUBMITTER_RANK\"")
+                        jq ".param.submitterId=\"$SUBMITTER_ID\"" |\
+                        jq ".param.submitterRank=\"$SUBMITTER_RANK\"")
        echo "POST $POST_SUBMISSION_URL"
        echo $PAYLOAD | jq
 
