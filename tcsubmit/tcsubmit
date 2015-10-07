@@ -1,0 +1,138 @@
+#!/bin/sh
+
+#
+# preferences
+
+TOKEN_FILE="$HOME/.tcrefresh"
+
+# set DEBUG to "-v" or "" -- it will
+#   1. activate shell tracing
+#   2. be passed to curl as an argument
+DEBUG=""
+
+#
+# preconditions
+
+set -e
+if [ ! -z $DEBUG ];
+then
+    set -x
+fi
+
+confirm() {
+    echo "\n$1\n"
+    read -p "Confirm by pressing any key or Ctrl-C to exit ..." -n 1 -r
+    echo
+}
+
+require () {
+    if ! command -v $1 > /dev/null 2>&1 ;
+    then
+        echo "$2"
+        exit
+    fi
+}
+
+require jq "requires jq (https://github.com/stedolan/jq). brew install jq and rerun"
+require tcjwt "requires tcjwt command from this repository to be available on your path"
+require curl "requires curl"
+
+
+#
+# help command
+
+if [ "$1" == "help" -o "$1" == "--help" ] ;
+then
+    cat <<EOF
+
+tcsubmit <command> [arguments]
+
+COMMANDS:
+  help		This helpful message
+
+  submission	creates a submission and prints its id to the console
+		example: tcsubmit submisssion <submitter_id> <submitter_rank>
+
+  attach	attaches submission id to work step
+		tcsubmit attach <work_id> <step_id> <submission_id>
+
+  file		upload a file to a submission
+		tcsubmit file <submission_id> <asset_type> <content_type> filename
+
+		asset_type to be one of [FIXME, FIXME, FIXME]
+		filename is the path to the file. avoid choosing a file outside the working directory.
+
+FILES:
+  $TOKEN_FILE	Storage for the refresh token
+
+EOF
+
+    exit
+fi
+
+#
+# command prerequisites
+
+TOKEN=$(jq '{param: .}' < $TOKEN_FILE | curl -s $DEBUG -H "Content-Type: application/json" -X POST --data @- https://api.topcoder-dev.com/v3/authorizations/ | jq -r ".result.content.token")
+
+
+#
+# submission command
+
+if [ "$1" == "submission" ] ;
+   then
+       SUBMITTER_ID=$2
+       SUBMITTER_RANK=$3
+
+       confirm "creating submission by '$SUBMITTER_ID' ranked '$SUBMITTER_RANK' ..."
+
+       # curl -s $DEBUG -H "Authorization: Bearer $(pbpaste)" https://api.topcoder-dev.com/v3/authorizations/1 | \
+       #     jq ".result.content | {refreshToken, externalToken}" | \
+       #     tee $TOKEN_FILE
+       exit
+fi
+
+
+#
+# attach command
+
+if [ "$1" == "attach" ] ;
+   then
+       WORKID=$2
+       STEPID=$3
+       SUBID=$4
+
+       confirm "attaching '$SUBID' to step '$STEPID' on project id '$WORKID' ..."
+
+       echo "$TOKEN"
+       # curl -s $DEBUG -H "Authorization: Bearer $(pbpaste)" https://api.topcoder-dev.com/v3/authorizations/1 | \
+       #     jq ".result.content | {refreshToken, externalToken}" | \
+       #     tee $TOKEN_FILE
+       exit
+fi
+
+
+#
+# file command
+
+if [ "$1" == "file" ] ;
+   then
+       SUBMISSION_ID=$2
+       ASSET_TYPE=$3
+       CONTENT_TYPE=$4
+       FILENAME=$5
+
+       confirm "uploading '$FILENAME' of type '$CONTENT_TYPE' to submission '$SUBMISSION_ID' with role '$ASSET_TYPE'"
+
+       # jq '{param: .}' < $TOKEN_FILE | \
+       #     curl -s $DEBUG -H "Content-Type: application/json" -X POST --data @- https://api.topcoder-dev.com/v3/authorizations/ | \
+       #     jq -r ".result.content.token" | \
+       #     pbcopy
+       # echo "copied."
+       exit
+fi
+
+
+#
+# fallback to help command
+$0 --help
