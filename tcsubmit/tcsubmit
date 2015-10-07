@@ -47,8 +47,21 @@ fi
 #
 # templates and paths
 
+POST_SUBMISSION_URL="$API_BASE/app-submissions"
+POST_SUBMISSION_TEMPLATE=$(cat <<'EOF'
+{
+  "param": {
+    "submitterId": "40097202",
+    "submitterRank": "1",
+    "sourceId": "synthetic123",
+    "sourceSystem": "topcoder"
+  }
+}
+EOF
+)
+
 GET_UPLOAD_URL_URL="$API_BASE/attachments/uploadurl"
-GET_UPLOAD_URL_TEMPLATE=$(cat <<'EOT'
+GET_UPLOAD_URL_TEMPLATE=$(cat <<'EOF'
 {
   "param": {
     "id": "1441513717335-59057fa5-da9a-4a93-a606-6136f37a48c4",
@@ -63,11 +76,11 @@ GET_UPLOAD_URL_TEMPLATE=$(cat <<'EOT'
   "debug": false,
   "return": null
 }
-EOT
+EOF
 )
 
 POST_METADATA_URL="$API_BASE/attachments"
-POST_METADATA_TEMPLATE=$(cat <<'EOT'
+POST_METADATA_TEMPLATE=$(cat <<'EOF'
 {
   "param": {
     "fileName": "abc.jpg",
@@ -85,7 +98,7 @@ POST_METADATA_TEMPLATE=$(cat <<'EOT'
   "debug": false,
   "return": null
 }
-EOT
+EOF
 )
 
 #
@@ -113,11 +126,10 @@ COMMANDS:
 		<filename> is the path to the file. Avoid choosing a file outside the working directory.
 
 EXAMPLE FLOW:
+tcsubmit submission 23322613 1
 
-# -- TODO submission, attach
-
-./tcsubmit file 1443552305127-2665abd7-7a85-486d-ad7e-bfd92d438571 COVER 'text/plain' foo.txt
-./tcsubmit file 1443552305127-2665abd7-7a85-486d-ad7e-bfd92d438571 DELIVERABLE 'text/plain' foo2.txt
+tcsubmit file 1443552305127-2665abd7-7a85-486d-ad7e-bfd92d438571 COVER 'text/plain' foo.txt
+tcsubmit file 1443552305127-2665abd7-7a85-486d-ad7e-bfd92d438571 DELIVERABLE 'text/plain' foo2.txt
 
 FILES:
   $TOKEN_FILE	Storage for the refresh token
@@ -142,13 +154,30 @@ if [ "$1" == "submission" ] ;
        SUBMITTER_ID=$2
        SUBMITTER_RANK=$3
 
-       confirm "creating submission by '$SUBMITTER_ID' ranked '$SUBMITTER_RANK' ..."
+       confirm "creating submission by user id '$SUBMITTER_ID' ranked '$SUBMITTER_RANK' ..."
 
+       PAYLOAD=$(echo $POST_SUBMISSION_TEMPLATE |\
+                        jq ".submitterId=\"$SUBMITTER_ID\"" |\
+                        jq ".submitterRank=\"$SUBMITTER_RANK\"")
+       echo "POST $POST_SUBMISSION_URL"
+       echo $PAYLOAD | jq
 
-       # curl -s $DEBUG -H "Authorization: Bearer $(pbpaste)" https://api.topcoder-dev.com/v3/authorizations/1 | \
-       #     jq ".result.content | {refreshToken, externalToken}" | \
-       #     tee $TOKEN_FILE
-       exit
+       RESULT=$(echo $PAYLOAD | curl -s $DEBUG \
+                                     -H "Authorization: Bearer $TOKEN" \
+                                     -H "Content-Type: application/json" \
+                                     -X POST --data @- $POST_SUBMISSION_URL)
+       STATUS=$(echo $RESULT | jq '.result.status')
+
+       if [ "$STATUS" == "200" ];
+       then
+           echo "$STATUS OK\n"
+           echo $RESULT | jq -r '.result.content.id'
+           exit 0
+       else
+           echo "ERROR requesting presigned url"
+           echo $RESULT
+           exit -1
+       fi
 fi
 
 
@@ -162,12 +191,6 @@ if [ "$1" == "attach" ] ;
        SUBID=$4
 
        confirm "attaching '$SUBID' to step '$STEPID' on project id '$WORKID' ..."
-
-       echo "$TOKEN"
-       # curl -s $DEBUG -H "Authorization: Bearer $(pbpaste)" https://api.topcoder-dev.com/v3/authorizations/1 | \
-       #     jq ".result.content | {refreshToken, externalToken}" | \
-       #     tee $TOKEN_FILE
-       exit
 fi
 
 
