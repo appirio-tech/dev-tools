@@ -4,7 +4,10 @@
 # preferences
 
 TOKEN_FILE="$HOME/.tcrefresh"
-API_BASE='https://api.topcoder-dev.com/v3'
+if [ -z "$API_BASE" ];
+then
+    API_BASE='https://api.topcoder-dev.com/v3'
+fi
 
 # set DEBUG to "-v" or "" -- it will
 #   1. activate shell tracing
