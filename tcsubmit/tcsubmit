@@ -1,0 +1,337 @@
+#!/bin/sh
+
+#
+# preferences
+
+TOKEN_FILE="$HOME/.tcrefresh"
+API_BASE='https://api.topcoder-dev.com/v3'
+
+# set DEBUG to "-v" or "" -- it will
+#   1. activate shell tracing
+#   2. be passed to curl as an argument
+DEBUG=""
+
+#
+# file functions and prerequisites
+
+set -e
+if [ ! -z $DEBUG ];
+then
+    set -x
+fi
+
+confirm() {
+    echo "$1\n"
+    read -p "Confirm by pressing any key or Ctrl-C to exit ..." -n 1 -r
+    echo
+}
+
+require () {
+    if ! command -v $1 > /dev/null 2>&1 ;
+    then
+        echo "$2"
+        exit
+    fi
+}
+
+require jq "requires jq (https://github.com/stedolan/jq). brew install jq and rerun"
+require curl "requires curl"
+
+if [ ! -f $TOKEN_FILE ];
+then
+    echo "\nrequires tcjwt refresh file. run 'tcjwt refresh' (from this repository -- follow tcjwt directions) to create a $TOKEN_FILE file\n"
+    exit
+fi
+
+
+#
+# templates and paths
+
+POST_SUBMISSION_URL="$API_BASE/app-submissions"
+POST_SUBMISSION_TEMPLATE=$(cat <<'EOF'
+{
+  "param": {
+    "submitterId": "40097202",
+    "submitterRank": "1",
+    "sourceId": "synthetic123",
+    "sourceSystem": "topcoder"
+  }
+}
+EOF
+)
+
+GET_UPLOAD_URL_URL="$API_BASE/attachments/uploadurl"
+GET_UPLOAD_URL_TEMPLATE=$(cat <<'EOF'
+{
+  "param": {
+    "id": "1441513717335-59057fa5-da9a-4a93-a606-6136f37a48c4",
+    "fileName": "abc.jpg",
+    "assetType": "specs",
+    "fileType": "image/jpeg",
+    "category": "work"
+  },
+  "options": null,
+  "method": null,
+  "originalRequest": false,
+  "debug": false,
+  "return": null
+}
+EOF
+)
+
+POST_METADATA_URL="$API_BASE/attachments"
+POST_METADATA_TEMPLATE=$(cat <<'EOF'
+{
+  "param": {
+    "fileName": "abc.jpg",
+    "assetType": "specs",
+    "fileType": "image/jpeg",
+    "category": "work",
+    "fileSize": "1241215",
+    "filePath": "test/abc.jpg",
+    "fileHash": null,
+    "id": "1441513717335-59057fa5-da9a-4a93-a606-6136f37a48c4"
+  },
+  "options": null,
+  "method": null,
+  "originalRequest": false,
+  "debug": false,
+  "return": null
+}
+EOF
+)
+
+#
+# help command
+
+if [ "$1" == "help" -o "$1" == "--help" ] ;
+then
+    cat <<EOF
+
+tcsubmit <command> [arguments]
+
+COMMANDS:
+  help		This helpful message
+
+  submission	creates a submission and prints its id to the console
+		-- tcsubmit submisssion <submitter_id> <submitter_rank>
+
+  attach	attaches submission id to work step
+		-- tcsubmit attach <work_id> <step_id> <submission_id>
+
+  file		upload a file to a submission
+		-- tcsubmit file <submission_id> <asset_type> <content_type> filename
+
+		<asset_type> to be one of [DELIVERABLE, COVER, PREVIEW]. No validation in this script.
+		<filename> is the path to the file. Avoid choosing a file outside the working directory.
+
+EXAMPLE FLOW:
+tcsubmit submission 23322613 1
+
+tcsubmit file 1443552305127-2665abd7-7a85-486d-ad7e-bfd92d438571 COVER 'text/plain' foo.txt
+tcsubmit file 1443552305127-2665abd7-7a85-486d-ad7e-bfd92d438571 DELIVERABLE 'text/plain' foo2.txt
+
+FILES:
+  $TOKEN_FILE	Storage for the refresh token
+
+EOF
+
+    exit
+fi
+
+#
+# command prerequisites
+
+echo "refreshing token ..."
+TOKEN=$(jq '{param: .}' < $TOKEN_FILE | curl -s $DEBUG -H "Content-Type: application/json" -X POST --data @- https://api.topcoder-dev.com/v3/authorizations/ | jq -r ".result.content.token")
+
+
+#
+# submission command
+
+if [ "$1" == "submission" ] ;
+   then
+       SUBMITTER_ID=$2
+       SUBMITTER_RANK=$3
+
+       confirm "creating submission by user id '$SUBMITTER_ID' ranked '$SUBMITTER_RANK' ..."
+
+       PAYLOAD=$(echo $POST_SUBMISSION_TEMPLATE |\
+                        jq ".submitterId=\"$SUBMITTER_ID\"" |\
+                        jq ".submitterRank=\"$SUBMITTER_RANK\"")
+       echo "POST $POST_SUBMISSION_URL"
+       echo $PAYLOAD | jq
+
+       RESULT=$(echo $PAYLOAD | curl -s $DEBUG \
+                                     -H "Authorization: Bearer $TOKEN" \
+                                     -H "Content-Type: application/json" \
+                                     -X POST --data @- $POST_SUBMISSION_URL)
+       STATUS=$(echo $RESULT | jq '.result.status')
+
+       if [ "$STATUS" == "200" ];
+       then
+           echo "$STATUS OK\n"
+           echo $RESULT | jq -r '.result.content.id'
+           exit 0
+       else
+           echo "ERROR requesting presigned url"
+           echo $RESULT
+           exit -1
+       fi
+fi
+
+
+#
+# attach command
+
+if [ "$1" == "attach" ] ;
+   then
+       WORKID=$2
+       STEPID=$3
+       SUBID=$4
+
+       echo "attaching '$SUBID' to step '$STEPID' on project id '$WORKID' ..."
+
+       GET_STEP_URL="$API_BASE/projects/$WORKID/steps/$STEPID"
+
+       echo "\nGET $GET_STEP_URL"
+       RESULT=$(curl -s $DEBUG -H "Authorization: Bearer $TOKEN" $GET_STEP_URL)
+
+       STATUS=$(echo $RESULT | jq '.result.status')
+       if [ "$STATUS" == "200" ];
+       then
+           echo "$STATUS OK\n"
+           SUBMISSION_IDS=$(echo $RESULT | jq '.result.content.details.submissionIds')
+           if [ -z "$SUBMISSION_IDS" ];
+           then
+               SUBMISSION_IDS='[]'
+           fi
+           COUNT=$(echo $SUBMISSION_IDS | jq '. | length')
+           echo "found $COUNT existing submissions"
+           echo $SUBMISSION_IDS | jq
+       else
+           echo "ERROR requesting workstep"
+           echo $RESULT
+           exit -1
+       fi
+
+       echo "PATCH $GET_STEP_URL"
+       PAYLOAD=$(echo $SUBMISSION_IDS | jq ". + [\"$SUBID\"] | {submissionIds: .} | {details: .} | {param: .}")
+       echo $PAYLOAD | jq
+       confirm
+
+       RESULT=$(echo $PAYLOAD | curl -s $DEBUG \
+                                     -H "Authorization: Bearer $TOKEN" \
+                                     -H "Content-Type: application/json" \
+                                     -X PATCH --data @- $GET_STEP_URL)
+       STATUS=$(echo $RESULT | jq '.result.status')
+
+       if [ "$STATUS" == "200" ];
+       then
+           echo "$STATUS OK\n"
+           echo $RESULT | jq -r '.result.content'
+           exit 0
+       else
+           echo "ERROR patching work step details"
+           echo $RESULT
+           exit -1
+       fi
+fi
+
+
+#
+# file command
+
+if [ "$1" == "file" ] ;
+   then
+       SUBMISSION_ID=$2
+       ASSET_TYPE=$3
+       CONTENT_TYPE=$4
+       FILENAME=$5
+
+       confirm "uploading '$FILENAME' of type '$CONTENT_TYPE' to submission '$SUBMISSION_ID' with role '$ASSET_TYPE'"
+
+       # get presigned url
+       PAYLOAD=$(echo $GET_UPLOAD_URL_TEMPLATE |\
+                        jq ".param.id=\"$SUBMISSION_ID\"" |\
+                        jq ".param.fileName=\"$FILENAME\"" |\
+                        jq ".param.assetType=\"$ASSET_TYPE\"" |\
+                        jq ".param.fileType=\"$CONTENT_TYPE\"" |\
+                        jq ".param.category=\"submission\"")
+       echo "POST $GET_UPLOAD_URL_URL"
+       echo $PAYLOAD | jq
+
+       UPLOAD_URL_RESULT=$(echo $PAYLOAD | curl -s $DEBUG \
+                                                -H "Authorization: Bearer $TOKEN" \
+                                                -H "Content-Type: application/json" \
+                                                -X POST --data @- $GET_UPLOAD_URL_URL)
+       STATUS=$(echo $UPLOAD_URL_RESULT | jq '.result.status')
+
+       if [ "$STATUS" == "200" ];
+       then
+           echo "$STATUS OK"
+       else
+           echo "ERROR requesting presigned url"
+           echo $UPLOAD_URL_RESULT
+           exit -1
+       fi
+
+
+       # upload file
+       echo
+       echo "UPLOADING $FILENAME"
+
+       PRESIGNED_URL=$(echo $UPLOAD_URL_RESULT | jq -r '.result.content.preSignedURL')
+
+       UPLOAD_RESULT=$(curl -s $DEBUG \
+                            -H "Content-Type: $CONTENT_TYPE" \
+                            --upload-file $FILENAME \
+                            $PRESIGNED_URL)
+
+       if [ ! -z "$UPLOAD_RESULT" ];
+       then
+           echo "UPLOAD FAILED"
+           echo $UPLOAD_RESULT
+           exit -1
+       fi
+       echo "upload complete"
+
+
+       # POST metadata
+       echo
+       echo "POST $POST_METADATA_URL"
+       echo $PAYLOAD | jq
+
+       FILE_PATH=$(echo $UPLOAD_URL_RESULT | jq -r '.result.content.filePath')
+       FILE_SIZE=$(ls -l foo.txt | awk '{print $5}')
+
+       PAYLOAD=$(echo $POST_METADATA_TEMPLATE |\
+                        jq ".param.id=\"$SUBMISSION_ID\"" |\
+                        jq ".param.fileName=\"$FILENAME\"" |\
+                        jq ".param.assetType=\"$ASSET_TYPE\"" |\
+                        jq ".param.fileType=\"$CONTENT_TYPE\"" |\
+                        jq ".param.fileSize=\"$FILE_SIZE\"" |\
+                        jq ".param.filePath=\"$FILE_PATH\"" |\
+                        jq ".param.category=\"submission\"")
+
+       POST_METADATA_RESULT=$(echo $PAYLOAD | curl -s $DEBUG \
+                                                   -H "Authorization: Bearer $TOKEN" \
+                                                   -H "Content-Type: application/json" \
+                                                   -X POST --data @- $POST_METADATA_URL)
+       STATUS=$(echo $POST_METADATA_RESULT | jq '.result.status')
+
+       if [ "$STATUS" == "200" ];
+       then
+           echo "$STATUS OK"
+           exit 0
+       else
+           echo "ERROR posting metadata"
+           echo $POST_METADATA_RESULT
+           exit -1
+       fi
+fi
+
+
+#
+# fallback to help command
+$0 --help
