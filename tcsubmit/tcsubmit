@@ -4,6 +4,7 @@
 # preferences
 
 TOKEN_FILE="$HOME/.tcrefresh"
+API_BASE='https://api.topcoder-dev.com/v3'
 
 # set DEBUG to "-v" or "" -- it will
 #   1. activate shell tracing
@@ -11,7 +12,7 @@ TOKEN_FILE="$HOME/.tcrefresh"
 DEBUG=""
 
 #
-# preconditions
+# file functions and prerequisites
 
 set -e
 if [ ! -z $DEBUG ];
@@ -42,6 +43,51 @@ then
     exit
 fi
 
+
+#
+# templates and paths
+
+GET_UPLOAD_URL_URL="$API_BASE/attachments/uploadurl"
+GET_UPLOAD_URL_TEMPLATE=$(cat <<'EOT'
+{
+  "param": {
+    "id": "1441513717335-59057fa5-da9a-4a93-a606-6136f37a48c4",
+    "fileName": "abc.jpg",
+    "assetType": "specs",
+    "fileType": "image/jpeg",
+    "category": "work"
+  },
+  "options": null,
+  "method": null,
+  "originalRequest": false,
+  "debug": false,
+  "return": null
+}
+EOT
+)
+
+POST_METADATA_URL="$API_BASE/attachments"
+POST_METADATA_TEMPLATE=$(cat <<'EOT'
+{
+  "param": {
+    "fileName": "abc.jpg",
+    "assetType": "specs",
+    "fileType": "image/jpeg",
+    "category": "work",
+    "fileSize": "1241215",
+    "filePath": "test/abc.jpg",
+    "fileHash": null,
+    "id": "1441513717335-59057fa5-da9a-4a93-a606-6136f37a48c4"
+  },
+  "options": null,
+  "method": null,
+  "originalRequest": false,
+  "debug": false,
+  "return": null
+}
+EOT
+)
+
 #
 # help command
 
@@ -55,16 +101,19 @@ COMMANDS:
   help		This helpful message
 
   submission	creates a submission and prints its id to the console
-		example: tcsubmit submisssion <submitter_id> <submitter_rank>
+		-- tcsubmit submisssion <submitter_id> <submitter_rank>
 
   attach	attaches submission id to work step
-		tcsubmit attach <work_id> <step_id> <submission_id>
+		-- tcsubmit attach <work_id> <step_id> <submission_id>
 
   file		upload a file to a submission
-		tcsubmit file <submission_id> <asset_type> <content_type> filename
+		-- tcsubmit file <submission_id> <asset_type> <content_type> filename
 
-		asset_type to be one of [FIXME, FIXME, FIXME]
-		filename is the path to the file. avoid choosing a file outside the working directory.
+		<asset_type> to be one of [DELIVERABLE, COVER, PREVIEW]. No validation in this script.
+		<filename> is the path to the file. Avoid choosing a file outside the working directory.
+
+EXAMPLE FLOW:
+# -- TODO
 
 FILES:
   $TOKEN_FILE	Storage for the refresh token
@@ -90,6 +139,7 @@ if [ "$1" == "submission" ] ;
        SUBMITTER_RANK=$3
 
        confirm "creating submission by '$SUBMITTER_ID' ranked '$SUBMITTER_RANK' ..."
+
 
        # curl -s $DEBUG -H "Authorization: Bearer $(pbpaste)" https://api.topcoder-dev.com/v3/authorizations/1 | \
        #     jq ".result.content | {refreshToken, externalToken}" | \
@@ -129,12 +179,84 @@ if [ "$1" == "file" ] ;
 
        confirm "uploading '$FILENAME' of type '$CONTENT_TYPE' to submission '$SUBMISSION_ID' with role '$ASSET_TYPE'"
 
-       # jq '{param: .}' < $TOKEN_FILE | \
-       #     curl -s $DEBUG -H "Content-Type: application/json" -X POST --data @- https://api.topcoder-dev.com/v3/authorizations/ | \
-       #     jq -r ".result.content.token" | \
-       #     pbcopy
-       # echo "copied."
-       exit
+       # get presigned url
+       PAYLOAD=$(echo $GET_UPLOAD_URL_TEMPLATE |\
+                        jq ".param.id=\"$SUBMISSION_ID\"" |\
+                        jq ".param.fileName=\"$FILENAME\"" |\
+                        jq ".param.assetType=\"$ASSET_TYPE\"" |\
+                        jq ".param.fileType=\"$CONTENT_TYPE\"" |\
+                        jq ".param.category=\"submission\"")
+       echo "POST $GET_UPLOAD_URL_URL"
+       echo $PAYLOAD | jq
+
+       UPLOAD_URL_RESULT=$(echo $PAYLOAD | curl -s $DEBUG \
+                                                -H "Authorization: Bearer $TOKEN" \
+                                                -H "Content-Type: application/json" \
+                                                -X POST --data @- $GET_UPLOAD_URL_URL)
+       STATUS=$(echo $UPLOAD_URL_RESULT | jq '.result.status')
+
+       if [ "$STATUS" == "200" ];
+       then
+           echo "$STATUS OK"
+       else
+           echo "ERROR requesting presigned url"
+           echo $UPLOAD_URL_RESULT
+           exit -1
+       fi
+
+
+       # upload file
+       echo
+       echo "UPLOADING $FILENAME"
+
+       PRESIGNED_URL=$(echo $UPLOAD_URL_RESULT | jq -r '.result.content.preSignedURL')
+
+       UPLOAD_RESULT=$(curl -s $DEBUG \
+                            -H "Content-Type: $CONTENT_TYPE" \
+                            --upload-file $FILENAME \
+                            $PRESIGNED_URL)
+
+       if [ ! -z "$UPLOAD_RESULT" ];
+       then
+           echo "UPLOAD FAILED"
+           echo $UPLOAD_RESULT
+           exit -1
+       fi
+       echo "upload complete"
+
+
+       # POST metadata
+       echo
+       echo "POST $POST_METADATA_URL"
+       echo $PAYLOAD | jq
+
+       FILE_PATH=$(echo $UPLOAD_URL_RESULT | jq -r '.result.content.filePath')
+       FILE_SIZE=$(ls -l foo.txt | awk '{print $5}')
+
+       PAYLOAD=$(echo $POST_METADATA_TEMPLATE |\
+                        jq ".param.id=\"$SUBMISSION_ID\"" |\
+                        jq ".param.fileName=\"$FILENAME\"" |\
+                        jq ".param.assetType=\"$ASSET_TYPE\"" |\
+                        jq ".param.fileType=\"$CONTENT_TYPE\"" |\
+                        jq ".param.fileSize=\"$FILE_SIZE\"" |\
+                        jq ".param.filePath=\"$FILE_PATH\"" |\
+                        jq ".param.category=\"submission\"")
+
+       POST_METADATA_RESULT=$(echo $PAYLOAD | curl -s $DEBUG \
+                                                   -H "Authorization: Bearer $TOKEN" \
+                                                   -H "Content-Type: application/json" \
+                                                   -X POST --data @- $POST_METADATA_URL)
+       STATUS=$(echo $POST_METADATA_RESULT | jq '.result.status')
+
+       if [ "$STATUS" == "200" ];
+       then
+           echo "$STATUS OK"
+           exit 0
+       else
+           echo "ERROR posting metadata"
+           echo $POST_METADATA_RESULT
+           exit -1
+       fi
 fi
 
 
