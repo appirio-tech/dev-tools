@@ -126,10 +126,10 @@ COMMANDS:
 		<filename> is the path to the file. Avoid choosing a file outside the working directory.
 
 EXAMPLE FLOW:
-tcsubmit submission 23322613 1
-
-tcsubmit file 1443552305127-2665abd7-7a85-486d-ad7e-bfd92d438571 COVER 'text/plain' foo.txt
-tcsubmit file 1443552305127-2665abd7-7a85-486d-ad7e-bfd92d438571 DELIVERABLE 'text/plain' foo2.txt
+wash:~ tif$ tcsubmit submission 23322613 1
+wash:~ tif$ tcsubmit attach 1443224940909-282ec266-8164-42b7-849b-b7fe7359deb0 1443224941159-55f7bfdf-88ea-4033-a31d-77ec0cd5055c 1444233285595-52048dda-40b7-48a8-9785-d1258ef4ce3d
+wash:~ tif$ tcsubmit file 1443552305127-2665abd7-7a85-486d-ad7e-bfd92d438571 COVER 'text/plain' foo.txt
+wash:~ tif$ tcsubmit file 1443552305127-2665abd7-7a85-486d-ad7e-bfd92d438571 DELIVERABLE 'text/plain' foo2.txt
 
 FILES:
   $TOKEN_FILE	Storage for the refresh token
