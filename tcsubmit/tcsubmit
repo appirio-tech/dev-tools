@@ -301,12 +301,8 @@ if [ "$1" == "file" ] ;
 
 
        # POST metadata
-       echo
-       echo "POST $POST_METADATA_URL"
-       echo $PAYLOAD | jq
-
        FILE_PATH=$(echo $UPLOAD_URL_RESULT | jq -r '.result.content.filePath')
-       FILE_SIZE=$(ls -l foo.txt | awk '{print $5}')
+       FILE_SIZE=$(ls -l $FILENAME | awk '{print $5}')
 
        PAYLOAD=$(echo $POST_METADATA_TEMPLATE |\
                         jq ".param.id=\"$SUBMISSION_ID\"" |\
@@ -316,6 +312,9 @@ if [ "$1" == "file" ] ;
                         jq ".param.fileSize=\"$FILE_SIZE\"" |\
                         jq ".param.filePath=\"$FILE_PATH\"" |\
                         jq ".param.category=\"submission\"")
+       echo
+       echo "POST $POST_METADATA_URL"
+       echo $PAYLOAD | jq
 
        POST_METADATA_RESULT=$(echo $PAYLOAD | curl -s $DEBUG \
                                                    -H "Authorization: Bearer $TOKEN" \
