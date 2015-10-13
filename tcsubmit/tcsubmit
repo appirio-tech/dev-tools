@@ -24,7 +24,7 @@ then
 fi
 
 confirm() {
-    echo "$1\n"
+    echo "$1" && echo
     read -p "Confirm by pressing any key or Ctrl-C to exit ..." -n 1 -r
     echo
 }
@@ -42,7 +42,8 @@ require curl "requires curl"
 
 if [ ! -f $TOKEN_FILE ];
 then
-    echo "\nrequires tcjwt refresh file. run 'tcjwt refresh' (from this repository -- follow tcjwt directions) to create a $TOKEN_FILE file\n"
+    echo "requires tcjwt refresh file."
+    echo "run 'tcjwt refresh' (available in dev-tools repo) to capture your refresh token in $TOKEN_FILE"
     exit
 fi
 
@@ -173,7 +174,7 @@ if [ "$1" == "submission" ] ;
 
        if [ "$STATUS" == "200" ];
        then
-           echo "$STATUS OK\n"
+           echo "$STATUS OK" && echo
            echo $RESULT | jq -r '.result.content.id'
            exit 0
        else
@@ -197,13 +198,13 @@ if [ "$1" == "attach" ] ;
 
        GET_STEP_URL="$API_BASE/projects/$WORKID/steps/$STEPID"
 
-       echo "\nGET $GET_STEP_URL"
+       echo && echo "GET $GET_STEP_URL"
        RESULT=$(curl -s $DEBUG -H "Authorization: Bearer $TOKEN" $GET_STEP_URL)
 
        STATUS=$(echo $RESULT | jq '.result.status')
        if [ "$STATUS" == "200" ];
        then
-           echo "$STATUS OK\n"
+           echo "$STATUS OK" && echo
            SUBMISSION_IDS=$(echo $RESULT | jq '.result.content.details.submissionIds')
            if [ -z "$SUBMISSION_IDS" ];
            then
@@ -231,7 +232,7 @@ if [ "$1" == "attach" ] ;
 
        if [ "$STATUS" == "200" ];
        then
-           echo "$STATUS OK\n"
+           echo "$STATUS OK" && echo
            echo $RESULT | jq -r '.result.content'
            exit 0
        else
