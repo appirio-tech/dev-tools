@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+DYNAMODB_HOST=`boot2docker ip`
+DYNAMODB_URL=http://$DYNAMODB_HOST:8000
+echo $DYNAMODB_URL
+
+echo "Creating Work table"
+aws dynamodb create-table --table-name Work --attribute-definitions AttributeName=ownerId,AttributeType=S AttributeName=id,AttributeType=S AttributeName=tcDirectId,AttributeType=S AttributeName=copilotId,AttributeType=S AttributeName=parentId,AttributeType=S --key-schema AttributeName=ownerId,KeyType=HASH AttributeName=id,KeyType=RANGE --endpoint-url $DYNAMODB_URL --region us-east-1 --provisioned-throughput ReadCapacityUnits=2,WriteCapacityUnits=2 --profile default --global-secondary-indexes '[{"IndexName":"tcDirectId-index","KeySchema":[{"AttributeName":"tcDirectId","KeyType":"HASH"}],"Projection":{"ProjectionType":"INCLUDE", "NonKeyAttributes": ["modelType"]},"ProvisionedThroughput":{"ReadCapacityUnits":1,"WriteCapacityUnits":1}},{"IndexName":"copilotId-index","KeySchema":[{"AttributeName":"copilotId","KeyType":"HASH"}],"Projection":{"ProjectionType":"ALL"},"ProvisionedThroughput":{"ReadCapacityUnits":1,"WriteCapacityUnits":1}},{"IndexName":"id-index","KeySchema":[{"AttributeName":"id","KeyType":"HASH"}],"Projection":{"ProjectionType":"ALL"},"ProvisionedThroughput":{"ReadCapacityUnits":1,"WriteCapacityUnits":1}}]' --local-secondary-indexes '[{"IndexName":"parentId-index","KeySchema":[{"AttributeName":"ownerId","KeyType":"HASH"},{"AttributeName":"parentId","KeyType":"RANGE"}],"Projection":{"ProjectionType":"ALL"}}]'
+
+echo "Creating WorkFile table"
+aws dynamodb create-table --table-name WorkFile --attribute-definitions AttributeName=workId,AttributeType=S AttributeName=fileId,AttributeType=S AttributeName=userId,AttributeType=S AttributeName=assetType,AttributeType=S --key-schema AttributeName=workId,KeyType=HASH AttributeName=fileId,KeyType=RANGE --endpoint-url $DYNAMODB_URL --region us-east-1 --provisioned-throughput ReadCapacityUnits=2,WriteCapacityUnits=2 --profile default --global-secondary-indexes '[{"IndexName":"index-userid","KeySchema":[{"AttributeName":"userId","KeyType":"HASH"}],"Projection":{"ProjectionType":"ALL"},"ProvisionedThroughput":{"ReadCapacityUnits":1,"WriteCapacityUnits":1}},{"IndexName":"index-fileid","KeySchema":[{"AttributeName":"fileId","KeyType":"HASH"}],"Projection":{"ProjectionType":"ALL"},"ProvisionedThroughput":{"ReadCapacityUnits":1,"WriteCapacityUnits":1}}]' --local-secondary-indexes '[{"IndexName":"index-assettype","KeySchema":[{"AttributeName":"workId","KeyType":"HASH"},{"AttributeName":"assetType","KeyType":"RANGE"}],"Projection":{"ProjectionType":"ALL"}}]'
+
+echo "Creating WorkEvent table"
+aws dynamodb create-table --table-name WorkEvent --attribute-definitions AttributeName=workId,AttributeType=S AttributeName=id,AttributeType=S --key-schema AttributeName=workId,KeyType=HASH AttributeName=id,KeyType=RANGE --endpoint-url $DYNAMODB_URL --region us-east-1 --provisioned-throughput ReadCapacityUnits=2,WriteCapacityUnits=2 --profile default
+
+echo "Creating WorkStep table"
+aws dynamodb create-table --table-name WorkStep --attribute-definitions AttributeName=workId,AttributeType=S AttributeName=id,AttributeType=S --key-schema AttributeName=workId,KeyType=HASH AttributeName=id,KeyType=RANGE --endpoint-url $DYNAMODB_URL --region us-east-1 --provisioned-throughput ReadCapacityUnits=2,WriteCapacityUnits=2 --profile default
