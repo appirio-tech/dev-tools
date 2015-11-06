@@ -64,7 +64,7 @@ fi
 if [ "$1" == "refresh" ] ;
    then
        echo "refreshing token ..."
-       curl -s $DEBUG -H "Authorization: Bearer $(pbpaste)" https://api.topcoder-dev.com/v3/authorizations/1 | \
+       curl -s $DEBUG -H "Authorization: Bearer $(pbpaste)" https://api.topcoder-qa.com/v3/authorizations/1 | \
            jq ".result.content | {refreshToken, externalToken}" | \
            tee $PREFS_FILE
        exit
@@ -78,7 +78,7 @@ if [ -z "$1" -o "$1" == "token" ] ;
    then
        echo "acquiring jwt ..."
        jq '{param: .}' < $PREFS_FILE | \
-           curl -s $DEBUG -H "Content-Type: application/json" -X POST --data @- https://api.topcoder-dev.com/v3/authorizations/ | \
+           curl -s $DEBUG -H "Content-Type: application/json" -X POST --data @- https://api.topcoder-qa.com/v3/authorizations/ | \
            jq -r ".result.content.token" | \
            pbcopy
        echo "copied."
