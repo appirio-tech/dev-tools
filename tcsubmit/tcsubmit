@@ -6,7 +6,7 @@
 TOKEN_FILE="$HOME/.tcrefresh"
 if [ -z "$API_BASE" ];
 then
-    API_BASE='https://api.topcoder-dev.com/v3'
+    API_BASE='https://api.topcoder-qa.com/v3'
 fi
 
 # set DEBUG to "-v" or "" -- it will
@@ -147,7 +147,7 @@ fi
 # command prerequisites
 
 echo "refreshing token ..."
-TOKEN=$(jq '{param: .}' < $TOKEN_FILE | curl -s $DEBUG -H "Content-Type: application/json" -X POST --data @- https://api.topcoder-dev.com/v3/authorizations/ | jq -r ".result.content.token")
+TOKEN=$(jq '{param: .}' < $TOKEN_FILE | curl -s $DEBUG -H "Content-Type: application/json" -X POST --data @- https://api.topcoder-qa.com/v3/authorizations/ | jq -r ".result.content.token")
 
 
 #
